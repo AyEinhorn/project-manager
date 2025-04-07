@@ -1,47 +1,32 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
+import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { PrismaClient } from "@prisma/client";
-
-// Use a singleton pattern for Prisma client
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
-const prisma = globalForPrisma.prisma || new PrismaClient();
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+import { db } from "@/lib/db";
 
 export async function GET(
   request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
-    const projectId = params.id;
+    // Make sure to await params before accessing id
+    const { id } = params;
+    const projectId = id;
     
     // Get the user session
     const session = await getServerSession(authOptions);
     
-    if (!session?.user?.email) {
+    if (!session?.user) {
       return NextResponse.json(
         { message: "Unauthorized" },
         { status: 401 }
       );
     }
 
-    // Get the user
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-    });
-
-    if (!user) {
-      return NextResponse.json(
-        { message: "User not found" },
-        { status: 404 }
-      );
-    }
-
     // Fetch the project
-    const project = await prisma.project.findUnique({
+    const project = await db.project.findUnique({
       where: { 
         id: projectId,
-        ownerId: user.id, // Ensure the project belongs to the current user
+        userId: session.user.id, // Ensure the project belongs to the current user
       },
       include: {
         tasks: true,
@@ -82,6 +67,7 @@ export async function GET(
             id: task.id,
             title: task.title,
             description: task.description,
+            priority: task.priority,
           })),
         },
         {
@@ -91,6 +77,7 @@ export async function GET(
             id: task.id,
             title: task.title,
             description: task.description,
+            priority: task.priority,
           })),
         },
         {
@@ -100,6 +87,7 @@ export async function GET(
             id: task.id,
             title: task.title,
             description: task.description,
+            priority: task.priority,
           })),
         },
         {
@@ -109,6 +97,7 @@ export async function GET(
             id: task.id,
             title: task.title,
             description: task.description,
+            priority: task.priority,
           })),
         },
       ],
@@ -117,6 +106,57 @@ export async function GET(
     return NextResponse.json({ project: formattedProject });
   } catch (error) {
     console.error("Error fetching project:", error);
+    return NextResponse.json(
+      { message: "Something went wrong" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    // Make sure to await params before accessing id
+    const { id } = params;
+    const projectId = id;
+    
+    // Get the user session
+    const session = await getServerSession(authOptions);
+    
+    if (!session?.user) {
+      return NextResponse.json(
+        { message: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    // Verify project exists and belongs to the user
+    const project = await db.project.findUnique({
+      where: {
+        id: projectId,
+        userId: session.user.id,
+      },
+    });
+
+    if (!project) {
+      return NextResponse.json(
+        { message: "Project not found" },
+        { status: 404 }
+      );
+    }
+
+    // Delete the project (cascade deletion will handle tasks)
+    await db.project.delete({
+      where: {
+        id: projectId,
+      },
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Error deleting project:", error);
     return NextResponse.json(
       { message: "Something went wrong" },
       { status: 500 }

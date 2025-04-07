@@ -43,6 +43,29 @@ export default function ProjectPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const refreshProject = async () => {
+    if (status !== "authenticated" || !projectId) return;
+    
+    try {
+      const response = await fetch(`/api/projects/${projectId}`);
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          setError("Project not found");
+        } else {
+          setError("Failed to load project");
+        }
+        return;
+      }
+      
+      const data = await response.json();
+      setProject(data.project);
+      setColumns(data.project.columns);
+    } catch (err) {
+      console.error("Error refreshing project data:", err);
+    }
+  };
+
   useEffect(() => {
     const fetchProject = async () => {
       if (status !== "authenticated" || !projectId) return;
@@ -71,6 +94,13 @@ export default function ProjectPage() {
     };
 
     fetchProject();
+
+    // Set up refresh interval
+    const refreshInterval = setInterval(() => {
+      refreshProject();
+    }, 30000); // Refresh every 30 seconds
+
+    return () => clearInterval(refreshInterval);
   }, [projectId, status]);
 
   const onDragEnd = (result: DropResult) => {
@@ -102,8 +132,52 @@ export default function ProjectPage() {
     // Update state
     setColumns(newColumns);
     
-    // TODO: Update the task status on the server
-    // This would be implemented in a real application
+    // Check if this is a move to/from the "done" column to update completion status
+    const isNowCompleted = destination.droppableId === 'done';
+    const wasCompleted = source.droppableId === 'done';
+    
+    // Only update if completion status changed
+    if (isNowCompleted !== wasCompleted) {
+      // Update task completion status on the server
+      updateTaskCompletion(task.id, isNowCompleted);
+      
+      // Update project stats for the progress bar
+      if (project) {
+        setProject({
+          ...project,
+          tasks: {
+            ...project.tasks,
+            completed: isNowCompleted 
+              ? project.tasks.completed + 1 
+              : project.tasks.completed - 1
+          }
+        });
+      }
+      
+      // Refresh project data after a short delay
+      setTimeout(() => refreshProject(), 1000);
+    }
+  };
+
+  // Function to update task completion status
+  const updateTaskCompletion = async (taskId: string, completed: boolean) => {
+    try {
+      const response = await fetch(`/api/projects/${projectId}/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          completed
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update task completion status');
+      }
+    } catch (error) {
+      console.error('Error updating task completion status:', error);
+    }
   };
 
   const addTaskToColumn = async (columnId: string, taskData: { title: string; description: string; priority: string }) => {
@@ -138,16 +212,22 @@ export default function ProjectPage() {
         });
       });
       
-      // Update project task count
+      // Check if task was added to "done" column
+      const isCompleted = columnId === 'done';
+      
+      // Update project task count and completion status
       if (project) {
         setProject({
           ...project,
           tasks: {
-            ...project.tasks,
-            total: project.tasks.total + 1
+            total: project.tasks.total + 1,
+            completed: isCompleted ? project.tasks.completed + 1 : project.tasks.completed
           }
         });
       }
+      
+      // Refresh project data after a short delay
+      setTimeout(() => refreshProject(), 1000);
     } catch (error) {
       console.error('Error adding task:', error);
     }
@@ -155,6 +235,11 @@ export default function ProjectPage() {
 
   const deleteTask = async (taskId: string, columnId: string) => {
     try {
+      // First, find the task to determine if it's completed
+      const column = columns.find(col => col.id === columnId);
+      const task = column?.tasks.find(t => t.id === taskId);
+      const isCompleted = columnId === 'done';
+      
       const response = await fetch(`/api/projects/${projectId}/tasks/${taskId}`, {
         method: 'DELETE',
       });
@@ -176,16 +261,19 @@ export default function ProjectPage() {
         });
       });
       
-      // Update project task count
+      // Update project task count and completion status
       if (project) {
         setProject({
           ...project,
           tasks: {
-            ...project.tasks,
-            total: project.tasks.total - 1
+            total: project.tasks.total - 1,
+            completed: isCompleted ? project.tasks.completed - 1 : project.tasks.completed
           }
         });
       }
+      
+      // Refresh project data after a short delay
+      setTimeout(() => refreshProject(), 1000);
     } catch (error) {
       console.error('Error deleting task:', error);
     }
@@ -234,6 +322,23 @@ export default function ProjectPage() {
                   columns={columns}
                   setColumns={setColumns}
                   onAddTask={(taskData) => addTaskToColumn(column.id, taskData)}
+                  onDeleteTask={deleteTask}
+                  onUpdateTask={(taskId, columnId, data) => {
+                    // Handle task updates
+                    const isCompletedColumn = columnId === 'done';
+                    const taskInColumn = columns.find(c => c.id === columnId)?.tasks.find(t => t.id === taskId);
+                    
+                    // Only update project stats if we have a valid task
+                    if (taskInColumn && project) {
+                      setProject({
+                        ...project,
+                        tasks: {
+                          total: project.tasks.total,
+                          completed: project.tasks.completed
+                        }
+                      });
+                    }
+                  }}
                 />
               ))}
             </div>

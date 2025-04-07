@@ -1,13 +1,8 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
+import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { PrismaClient } from "@prisma/client";
+import { db } from "@/lib/db";
 import * as z from "zod";
-
-// Use a singleton pattern for Prisma client
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
-const prisma = globalForPrisma.prisma || new PrismaClient();
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
 // Project creation schema
 const projectSchema = z.object({
@@ -20,28 +15,16 @@ export async function GET(request: Request) {
     // Get the user session
     const session = await getServerSession(authOptions);
     
-    if (!session?.user?.email) {
+    if (!session?.user) {
       return NextResponse.json(
         { message: "Unauthorized" },
         { status: 401 }
       );
     }
 
-    // Get the user
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-    });
-
-    if (!user) {
-      return NextResponse.json(
-        { message: "User not found" },
-        { status: 404 }
-      );
-    }
-
     // Fetch projects owned by the user
-    const projects = await prisma.project.findMany({
-      where: { ownerId: user.id },
+    const projects = await db.project.findMany({
+      where: { userId: session.user.id },
       include: {
         tasks: {
           select: {
@@ -86,22 +69,10 @@ export async function POST(request: Request) {
     // Get the user session
     const session = await getServerSession(authOptions);
     
-    if (!session?.user?.email) {
+    if (!session?.user) {
       return NextResponse.json(
         { message: "Unauthorized" },
         { status: 401 }
-      );
-    }
-
-    // Get the user
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-    });
-
-    if (!user) {
-      return NextResponse.json(
-        { message: "User not found" },
-        { status: 404 }
       );
     }
 
@@ -119,11 +90,11 @@ export async function POST(request: Request) {
     const { name, description } = validationResult.data;
 
     // Create the project
-    const project = await prisma.project.create({
+    const project = await db.project.create({
       data: {
         name,
         description,
-        ownerId: user.id,
+        userId: session.user.id,
       },
     });
 

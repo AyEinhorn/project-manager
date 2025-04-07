@@ -30,6 +30,24 @@ export function ProjectList() {
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  const refreshProjects = async () => {
+    if (!session?.user) return;
+    
+    try {
+      const response = await fetch('/api/projects', {
+        // Add cache busting parameter to ensure fresh data
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
+      });
+      const data = await response.json();
+      setProjects(data.projects || []);
+    } catch (error) {
+      console.error('Error refreshing projects:', error);
+    }
+  };
+
   useEffect(() => {
     const fetchProjects = async () => {
       if (!session?.user) return;
@@ -46,6 +64,13 @@ export function ProjectList() {
     };
 
     fetchProjects();
+
+    // Set up refresh interval
+    const refreshInterval = setInterval(() => {
+      refreshProjects();
+    }, 10000); // Refresh every 10 seconds
+
+    return () => clearInterval(refreshInterval);
   }, [session]);
 
   const handleDeleteProject = async () => {

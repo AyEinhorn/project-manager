@@ -13,6 +13,28 @@ export function DashboardStats() {
   });
   const [loading, setLoading] = useState(true);
 
+  const refreshStats = async () => {
+    if (!session?.user) return;
+    
+    try {
+      const response = await fetch('/api/dashboard/stats', {
+        // Add cache busting parameter to ensure fresh data
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
+      });
+      const data = await response.json();
+      setStats({
+        totalProjects: data.totalProjects || 0,
+        completedTasks: data.completedTasks || 0,
+        pendingTasks: data.pendingTasks || 0
+      });
+    } catch (error) {
+      console.error('Error refreshing dashboard stats:', error);
+    }
+  };
+
   useEffect(() => {
     const fetchStats = async () => {
       if (!session?.user) return;
@@ -33,6 +55,13 @@ export function DashboardStats() {
     };
 
     fetchStats();
+
+    // Set up refresh interval
+    const refreshInterval = setInterval(() => {
+      refreshStats();
+    }, 10000); // Refresh every 10 seconds
+
+    return () => clearInterval(refreshInterval);
   }, [session]);
 
   if (loading) {

@@ -17,7 +17,9 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    const projectId = params.id;
+    // Await the params to access its properties
+    const { id } = params;
+    const projectId = id;
     
     // Get the user session
     const session = await getServerSession(authOptions);

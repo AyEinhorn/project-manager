@@ -1,45 +1,28 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
+import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { PrismaClient } from "@prisma/client";
-
-// Use a singleton pattern for Prisma client
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
-const prisma = globalForPrisma.prisma || new PrismaClient();
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+import { db } from "@/lib/db";
 
 export async function GET(request: Request) {
   try {
     // Get the user session
     const session = await getServerSession(authOptions);
     
-    if (!session?.user?.email) {
+    if (!session?.user) {
       return NextResponse.json(
         { message: "Unauthorized" },
         { status: 401 }
       );
     }
 
-    // Get the user
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-    });
-
-    if (!user) {
-      return NextResponse.json(
-        { message: "User not found" },
-        { status: 404 }
-      );
-    }
-
     // Count total projects for the user
-    const totalProjects = await prisma.project.count({
-      where: { ownerId: user.id },
+    const totalProjects = await db.project.count({
+      where: { userId: session.user.id },
     });
 
     // Get all tasks across all user projects
-    const projects = await prisma.project.findMany({
-      where: { ownerId: user.id },
+    const projects = await db.project.findMany({
+      where: { userId: session.user.id },
       include: {
         tasks: {
           select: {

@@ -17,7 +17,9 @@ export async function DELETE(
   { params }: { params: { id: string; taskId: string } }
 ) {
   try {
-    const { id: projectId, taskId } = params;
+    // Await the params to access its properties
+    const { id, taskId } = params;
+    const projectId = id;
     
     // Get the user session
     const session = await getServerSession(authOptions);
@@ -84,7 +86,9 @@ export async function PATCH(
   { params }: { params: { id: string; taskId: string } }
 ) {
   try {
-    const { id: projectId, taskId } = params;
+    // Await the params to access its properties
+    const { id, taskId } = params;
+    const projectId = id;
     
     // Get the user session
     const session = await getServerSession(authOptions);

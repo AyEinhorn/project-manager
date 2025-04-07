@@ -28,9 +28,18 @@ interface BoardColumnProps {
   columns: Column[];
   setColumns: React.Dispatch<React.SetStateAction<Column[]>>;
   onAddTask: (taskData: { title: string; description: string; priority: string }) => void;
+  onDeleteTask?: (taskId: string, columnId: string) => void;
+  onUpdateTask?: (taskId: string, columnId: string, data: { title: string; description: string; priority: string }) => void;
 }
 
-export function BoardColumn({ column, columns, setColumns, onAddTask }: BoardColumnProps) {
+export function BoardColumn({ 
+  column, 
+  columns, 
+  setColumns, 
+  onAddTask,
+  onDeleteTask,
+  onUpdateTask 
+}: BoardColumnProps) {
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskDescription, setNewTaskDescription] = useState("");
@@ -69,6 +78,11 @@ export function BoardColumn({ column, columns, setColumns, onAddTask }: BoardCol
         return col;
       });
     });
+
+    // Propagate deletion to parent component
+    if (onDeleteTask) {
+      onDeleteTask(taskId, column.id);
+    }
   };
 
   const handleUpdateTask = (taskId: string, data: { title: string; description: string; priority: string }) => {
@@ -94,6 +108,11 @@ export function BoardColumn({ column, columns, setColumns, onAddTask }: BoardCol
         return col;
       });
     });
+
+    // Propagate update to parent component
+    if (onUpdateTask) {
+      onUpdateTask(taskId, column.id, data);
+    }
   };
 
   return (
