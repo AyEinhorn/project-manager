@@ -6,6 +6,7 @@ import { BoardColumn } from "@/components/projects/board-column";
 import { ProjectHeader } from "@/components/projects/project-header";
 import { DragDropContext, DropResult } from "@hello-pangea/dnd";
 import { useSession } from "next-auth/react";
+import { useParams } from "next/navigation";
 
 interface Project {
   id: string;
@@ -32,7 +33,9 @@ interface Task {
   description: string | null;
 }
 
-export default function ProjectPage({ params }: { params: { id: string } }) {
+export default function ProjectPage() {
+  const params = useParams();
+  const projectId = params.id as string;
   const { data: session, status } = useSession();
   const [project, setProject] = useState<Project | null>(null);
   const [columns, setColumns] = useState<Column[]>([]);
@@ -41,10 +44,10 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
 
   useEffect(() => {
     const fetchProject = async () => {
-      if (status !== "authenticated") return;
+      if (status !== "authenticated" || !projectId) return;
       
       try {
-        const response = await fetch(`/api/projects/${params.id}`);
+        const response = await fetch(`/api/projects/${projectId}`);
         
         if (!response.ok) {
           if (response.status === 404) {
@@ -67,7 +70,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     };
 
     fetchProject();
-  }, [params.id, status]);
+  }, [projectId, status]);
 
   const onDragEnd = (result: DropResult) => {
     const { destination, source, draggableId } = result;
@@ -100,6 +103,53 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     
     // TODO: Update the task status on the server
     // This would be implemented in a real application
+  };
+
+  const addTaskToColumn = async (columnId: string, taskData: { title: string; description: string }) => {
+    try {
+      const response = await fetch(`/api/projects/${projectId}/tasks`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...taskData,
+          columnId
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to add task');
+      }
+
+      const data = await response.json();
+      
+      // Update the columns state with the new task
+      setColumns(prevColumns => {
+        return prevColumns.map(column => {
+          if (column.id === columnId) {
+            return {
+              ...column,
+              tasks: [...column.tasks, data.task]
+            };
+          }
+          return column;
+        });
+      });
+      
+      // Update project task count
+      if (project) {
+        setProject({
+          ...project,
+          tasks: {
+            ...project.tasks,
+            total: project.tasks.total + 1
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error adding task:', error);
+    }
   };
 
   if (loading) {
@@ -144,6 +194,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
                   column={column} 
                   columns={columns}
                   setColumns={setColumns}
+                  onAddTask={(taskData) => addTaskToColumn(column.id, taskData)}
                 />
               ))}
             </div>

@@ -3,13 +3,15 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { TaskCard } from "@/components/projects/task-card";
-import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
+import { Droppable, Draggable } from "@hello-pangea/dnd";
 
 interface Task {
   id: string;
   title: string;
-  description: string;
+  description: string | null;
 }
 
 interface Column {
@@ -22,9 +24,32 @@ interface BoardColumnProps {
   column: Column;
   columns: Column[];
   setColumns: React.Dispatch<React.SetStateAction<Column[]>>;
+  onAddTask: (taskData: { title: string; description: string }) => void;
 }
 
-export function BoardColumn({ column, columns, setColumns }: BoardColumnProps) {
+export function BoardColumn({ column, columns, setColumns, onAddTask }: BoardColumnProps) {
+  const [isAddingTask, setIsAddingTask] = useState(false);
+  const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [newTaskDescription, setNewTaskDescription] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleAddTask = () => {
+    if (!newTaskTitle.trim()) return;
+    
+    setIsSubmitting(true);
+    
+    onAddTask({
+      title: newTaskTitle.trim(),
+      description: newTaskDescription.trim()
+    });
+    
+    // Reset form
+    setNewTaskTitle("");
+    setNewTaskDescription("");
+    setIsAddingTask(false);
+    setIsSubmitting(false);
+  };
+
   return (
     <Card className="min-w-[300px] max-w-[300px]">
       <CardHeader className="pb-2">
@@ -63,13 +88,53 @@ export function BoardColumn({ column, columns, setColumns }: BoardColumnProps) {
                 </Draggable>
               ))}
               {provided.placeholder}
-              <Button 
-                variant="ghost" 
-                className="w-full justify-start text-muted-foreground"
-              >
-                <PlusIcon className="h-4 w-4 mr-2" />
-                Add task
-              </Button>
+              
+              {isAddingTask ? (
+                <div className="space-y-2 mt-3">
+                  <Input
+                    placeholder="Task title"
+                    value={newTaskTitle}
+                    onChange={(e) => setNewTaskTitle(e.target.value)}
+                    className="w-full"
+                  />
+                  <Textarea
+                    placeholder="Task description (optional)"
+                    value={newTaskDescription}
+                    onChange={(e) => setNewTaskDescription(e.target.value)}
+                    className="w-full"
+                    rows={2}
+                  />
+                  <div className="flex space-x-2">
+                    <Button 
+                      size="sm"
+                      onClick={handleAddTask}
+                      disabled={!newTaskTitle.trim() || isSubmitting}
+                    >
+                      {isSubmitting ? "Adding..." : "Add"}
+                    </Button>
+                    <Button 
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setIsAddingTask(false);
+                        setNewTaskTitle("");
+                        setNewTaskDescription("");
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button 
+                  variant="ghost" 
+                  className="w-full justify-start text-muted-foreground"
+                  onClick={() => setIsAddingTask(true)}
+                >
+                  <PlusIcon className="h-4 w-4 mr-2" />
+                  Add task
+                </Button>
+              )}
             </div>
           )}
         </Droppable>
