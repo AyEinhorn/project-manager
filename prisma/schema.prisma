@@ -39,6 +39,7 @@ model Task {
   title       String
   description String?
   completed   Boolean  @default(false)
+  priority    String   @default("medium") // Options: low, medium, high
   projectId   String
   project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdAt   DateTime @default(now())

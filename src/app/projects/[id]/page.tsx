@@ -31,6 +31,7 @@ interface Task {
   id: string;
   title: string;
   description: string | null;
+  priority?: "low" | "medium" | "high";
 }
 
 export default function ProjectPage() {
@@ -105,7 +106,7 @@ export default function ProjectPage() {
     // This would be implemented in a real application
   };
 
-  const addTaskToColumn = async (columnId: string, taskData: { title: string; description: string }) => {
+  const addTaskToColumn = async (columnId: string, taskData: { title: string; description: string; priority: string }) => {
     try {
       const response = await fetch(`/api/projects/${projectId}/tasks`, {
         method: 'POST',
@@ -149,6 +150,44 @@ export default function ProjectPage() {
       }
     } catch (error) {
       console.error('Error adding task:', error);
+    }
+  };
+
+  const deleteTask = async (taskId: string, columnId: string) => {
+    try {
+      const response = await fetch(`/api/projects/${projectId}/tasks/${taskId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete task');
+      }
+
+      // Update the columns state by removing the deleted task
+      setColumns(prevColumns => {
+        return prevColumns.map(column => {
+          if (column.id === columnId) {
+            return {
+              ...column,
+              tasks: column.tasks.filter(task => task.id !== taskId)
+            };
+          }
+          return column;
+        });
+      });
+      
+      // Update project task count
+      if (project) {
+        setProject({
+          ...project,
+          tasks: {
+            ...project.tasks,
+            total: project.tasks.total - 1
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error deleting task:', error);
     }
   };
 

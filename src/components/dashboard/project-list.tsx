@@ -5,6 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { MoreHorizontal, Trash } from "lucide-react";
 
 // Define the project type
 interface Project {
@@ -23,6 +26,9 @@ export function ProjectList() {
   const { data: session } = useSession();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     const fetchProjects = async () => {
@@ -42,6 +48,31 @@ export function ProjectList() {
     fetchProjects();
   }, [session]);
 
+  const handleDeleteProject = async () => {
+    if (!projectToDelete) return;
+    
+    setIsDeleting(true);
+    
+    try {
+      const response = await fetch(`/api/projects/${projectToDelete.id}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete project');
+      }
+      
+      // Remove the project from state
+      setProjects(projects.filter(project => project.id !== projectToDelete.id));
+      setIsDeleteDialogOpen(false);
+      setProjectToDelete(null);
+    } catch (error) {
+      console.error('Error deleting project:', error);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   if (loading) {
     return <div className="text-center py-8">Loading projects...</div>;
   }
@@ -58,28 +89,69 @@ export function ProjectList() {
   }
 
   return (
-    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-      {projects.map((project) => (
-        <ProjectCard key={project.id} project={project} />
-      ))}
-      <Card className="flex items-center justify-center bg-muted/40 border-dashed hover:bg-muted/60 transition-colors">
-        <CardContent className="flex flex-col items-center justify-center p-6">
-          <Button asChild variant="outline" className="w-full">
-            <Link href="/projects/new">
-              <span className="mr-2">+</span> New Project
-            </Link>
-          </Button>
-        </CardContent>
-      </Card>
-    </div>
+    <>
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {projects.map((project) => (
+          <ProjectCard 
+            key={project.id} 
+            project={project} 
+            onDelete={() => {
+              setProjectToDelete(project);
+              setIsDeleteDialogOpen(true);
+            }}
+          />
+        ))}
+        <Card className="flex items-center justify-center bg-muted/40 border-dashed hover:bg-muted/60 transition-colors">
+          <CardContent className="flex flex-col items-center justify-center p-6">
+            <Button asChild variant="outline" className="w-full">
+              <Link href="/projects/new">
+                <span className="mr-2">+</span> New Project
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Project</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete "{projectToDelete?.name}"? This action cannot be undone and will delete all tasks associated with this project.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setIsDeleteDialogOpen(false);
+                setProjectToDelete(null);
+              }}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleDeleteProject}
+              disabled={isDeleting}
+            >
+              {isDeleting ? "Deleting..." : "Delete Project"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
 interface ProjectCardProps {
   project: Project;
+  onDelete: () => void;
 }
 
-function ProjectCard({ project }: ProjectCardProps) {
+function ProjectCard({ project, onDelete }: ProjectCardProps) {
   // Calculate progress percentage
   const progress = project.tasks.total > 0 
     ? Math.round((project.tasks.completed / project.tasks.total) * 100) 
@@ -88,7 +160,29 @@ function ProjectCard({ project }: ProjectCardProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{project.name}</CardTitle>
+        <div className="flex justify-between items-center">
+          <CardTitle>{project.name}</CardTitle>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                <MoreHorizontal className="h-4 w-4" />
+                <span className="sr-only">Options</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem asChild>
+                <Link href={`/projects/${project.id}`}>View Project</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                className="text-destructive"
+                onClick={onDelete}
+              >
+                <Trash className="h-4 w-4 mr-2" />
+                Delete Project
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
         <CardDescription>{project.description || "No description"}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

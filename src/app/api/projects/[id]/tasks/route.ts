@@ -1,19 +1,15 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
+import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { PrismaClient } from "@prisma/client";
+import { db } from "@/lib/db";
 import * as z from "zod";
-
-// Use a singleton pattern for Prisma client
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
-const prisma = globalForPrisma.prisma || new PrismaClient();
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
 // Task creation schema
 const taskSchema = z.object({
   title: z.string().min(1, "Task title is required"),
   description: z.string().optional(),
   columnId: z.string(),
+  priority: z.enum(["low", "medium", "high"]).default("medium"),
 });
 
 export async function POST(
@@ -26,30 +22,18 @@ export async function POST(
     // Get the user session
     const session = await getServerSession(authOptions);
     
-    if (!session?.user?.email) {
+    if (!session?.user) {
       return NextResponse.json(
         { message: "Unauthorized" },
         { status: 401 }
       );
     }
 
-    // Get the user
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-    });
-
-    if (!user) {
-      return NextResponse.json(
-        { message: "User not found" },
-        { status: 404 }
-      );
-    }
-
     // Verify project exists and belongs to the user
-    const project = await prisma.project.findUnique({
+    const project = await db.project.findUnique({
       where: {
         id: projectId,
-        ownerId: user.id,
+        ownerId: session.user.id,
       },
     });
 
@@ -71,16 +55,17 @@ export async function POST(
       );
     }
     
-    const { title, description, columnId } = validationResult.data;
+    const { title, description, columnId, priority } = validationResult.data;
 
     // Create the task
     const completed = columnId === "done"; // Mark as completed if in "done" column
     
-    const task = await prisma.task.create({
+    const task = await db.task.create({
       data: {
         title,
         description,
         completed,
+        priority,
         projectId,
       },
     });
@@ -92,6 +77,7 @@ export async function POST(
           id: task.id,
           title: task.title,
           description: task.description,
+          priority: task.priority
         }
       },
       { status: 201 }
