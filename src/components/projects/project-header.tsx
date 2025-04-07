@@ -8,16 +8,23 @@ interface ProjectHeaderProps {
   project: {
     id: string;
     name: string;
-    description: string;
-    progress: number;
-    tasks: { total: number; completed: number };
-    members: number;
-    dueDate: string;
+    description: string | null;
+    createdAt: string;
+    updatedAt: string;
+    tasks: { 
+      total: number; 
+      completed: number;
+    };
   };
 }
 
 export function ProjectHeader({ project }: ProjectHeaderProps) {
-  const formattedDate = new Date(project.dueDate).toLocaleDateString("en-US", {
+  // Calculate progress percentage
+  const progress = project.tasks.total > 0 
+    ? Math.round((project.tasks.completed / project.tasks.total) * 100) 
+    : 0;
+    
+  const formattedDate = new Date(project.updatedAt).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -28,7 +35,7 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-3xl font-bold mb-1">{project.name}</h1>
-          <p className="text-muted-foreground">{project.description}</p>
+          <p className="text-muted-foreground">{project.description || "No description"}</p>
         </div>
         <div className="flex space-x-2">
           <Button variant="outline">
@@ -58,10 +65,10 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
             <div className="flex-1 h-2 bg-secondary rounded-full overflow-hidden">
               <div
                 className="h-full bg-primary"
-                style={{ width: `${project.progress}%` }}
+                style={{ width: `${progress}%` }}
               />
             </div>
-            <span className="ml-2 text-sm font-medium">{project.progress}%</span>
+            <span className="ml-2 text-sm font-medium">{progress}%</span>
           </div>
         </div>
         
@@ -73,14 +80,12 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
             </p>
           </div>
           <div>
-            <p className="text-sm font-medium">Due Date</p>
+            <p className="text-sm font-medium">Last Updated</p>
             <p className="mt-1">{formattedDate}</p>
           </div>
           <div>
-            <p className="text-sm font-medium">Team</p>
-            <div className="mt-1">
-              <AvatarGroup maxCount={5} />
-            </div>
+            <p className="text-sm font-medium">Created</p>
+            <p className="mt-1">{new Date(project.createdAt).toLocaleDateString()}</p>
           </div>
         </div>
       </div>

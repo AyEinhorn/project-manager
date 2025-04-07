@@ -1,9 +1,8 @@
-import { PrismaAdapter } from "@auth/prisma-adapter";
 import { NextAuthOptions } from "next-auth";
-import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import bcrypt from "bcrypt";
+import { PrismaAdapter } from "@auth/prisma-adapter";
 import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcrypt";
 
 // Use a singleton pattern for Prisma client
 const globalForPrisma = global as unknown as { prisma: PrismaClient };
@@ -12,7 +11,6 @@ if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
-  secret: process.env.NEXTAUTH_SECRET,
   session: {
     strategy: "jwt",
   },
@@ -32,9 +30,7 @@ export const authOptions: NextAuthOptions = {
         }
 
         const user = await prisma.user.findUnique({
-          where: {
-            email: credentials.email,
-          },
+          where: { email: credentials.email },
         });
 
         if (!user) {
@@ -52,44 +48,24 @@ export const authOptions: NextAuthOptions = {
 
         return {
           id: user.id,
-          email: user.email,
           name: user.name,
+          email: user.email,
         };
       },
     }),
   ],
   callbacks: {
     async session({ session, token }) {
-      if (token) {
-        session.user.id = token.id;
-        session.user.name = token.name;
-        session.user.email = token.email;
+      if (token.sub && session.user) {
+        session.user.id = token.sub;
       }
       return session;
     },
     async jwt({ token, user }) {
-      const dbUser = await prisma.user.findFirst({
-        where: {
-          email: token.email,
-        },
-      });
-
-      if (!dbUser) {
-        if (user) {
-          token.id = user.id;
-        }
-        return token;
+      if (user) {
+        token.id = user.id;
       }
-
-      return {
-        id: dbUser.id,
-        name: dbUser.name,
-        email: dbUser.email,
-      };
+      return token;
     },
   },
-};
-
-const handler = NextAuth(authOptions);
-
-export { handler as GET, handler as POST }; 
+}; 

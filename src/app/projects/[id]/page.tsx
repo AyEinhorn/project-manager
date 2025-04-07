@@ -1,66 +1,74 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { DashboardHeader } from "@/components/dashboard/header";
 import { BoardColumn } from "@/components/projects/board-column";
 import { ProjectHeader } from "@/components/projects/project-header";
-import { useEffect, useState } from "react";
 import { DragDropContext, DropResult } from "@hello-pangea/dnd";
+import { useSession } from "next-auth/react";
 
-const mockProject = {
-  id: "1",
-  name: "Website Redesign",
-  description: "Redesign the company website with modern design principles.",
-  progress: 65,
-  tasks: { total: 24, completed: 16 },
-  members: 4,
-  dueDate: "2023-12-15",
-};
+interface Project {
+  id: string;
+  name: string;
+  description: string | null;
+  createdAt: string;
+  updatedAt: string;
+  tasks: {
+    total: number;
+    completed: number;
+  };
+  columns: Column[];
+}
 
-const mockColumns = [
-  {
-    id: "todo",
-    name: "To Do",
-    tasks: [
-      { id: "1", title: "Research competitors", description: "Analyze top 5 competitor websites" },
-      { id: "2", title: "Create wireframes", description: "Low-fidelity wireframes for homepage" },
-      { id: "3", title: "Content audit", description: "Review and organize existing content" },
-    ],
-  },
-  {
-    id: "in-progress",
-    name: "In Progress",
-    tasks: [
-      { id: "4", title: "Design system", description: "Create reusable components and style guide" },
-      { id: "5", title: "User interviews", description: "Conduct 5 user interviews for feedback" },
-    ],
-  },
-  {
-    id: "review",
-    name: "In Review",
-    tasks: [
-      { id: "6", title: "Homepage prototype", description: "Interactive prototype for homepage" },
-      { id: "7", title: "SEO strategy", description: "Develop SEO improvement plan" },
-    ],
-  },
-  {
-    id: "done",
-    name: "Done",
-    tasks: [
-      { id: "8", title: "Project kickoff", description: "Initial team meeting and scope definition" },
-      { id: "9", title: "Site architecture", description: "Define site structure and navigation" },
-      { id: "10", title: "Technology stack", description: "Select frontend and backend technologies" },
-    ],
-  },
-];
+interface Column {
+  id: string;
+  name: string;
+  tasks: Task[];
+}
+
+interface Task {
+  id: string;
+  title: string;
+  description: string | null;
+}
 
 export default function ProjectPage({ params }: { params: { id: string } }) {
-  const [columns, setColumns] = useState(mockColumns);
-  const project = mockProject;
+  const { data: session, status } = useSession();
+  const [project, setProject] = useState<Project | null>(null);
+  const [columns, setColumns] = useState<Column[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  if (!project) {
-    return <div>Project not found</div>;
-  }
-  
+  useEffect(() => {
+    const fetchProject = async () => {
+      if (status !== "authenticated") return;
+      
+      try {
+        const response = await fetch(`/api/projects/${params.id}`);
+        
+        if (!response.ok) {
+          if (response.status === 404) {
+            setError("Project not found");
+          } else {
+            setError("Failed to load project");
+          }
+          return;
+        }
+        
+        const data = await response.json();
+        setProject(data.project);
+        setColumns(data.project.columns);
+      } catch (err) {
+        setError("An error occurred while loading the project");
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProject();
+  }, [params.id, status]);
+
   const onDragEnd = (result: DropResult) => {
     const { destination, source, draggableId } = result;
 
@@ -89,7 +97,36 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     
     // Update state
     setColumns(newColumns);
+    
+    // TODO: Update the task status on the server
+    // This would be implemented in a real application
   };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col min-h-screen">
+        <DashboardHeader />
+        <main className="flex-1 container mx-auto py-6 px-4">
+          <div className="flex items-center justify-center h-64">
+            <p className="text-muted-foreground">Loading project...</p>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (error || !project) {
+    return (
+      <div className="flex flex-col min-h-screen">
+        <DashboardHeader />
+        <main className="flex-1 container mx-auto py-6 px-4">
+          <div className="flex items-center justify-center h-64">
+            <p className="text-destructive">{error || "Project not found"}</p>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col min-h-screen">

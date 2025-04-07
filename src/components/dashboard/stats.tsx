@@ -1,35 +1,66 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useSession } from "next-auth/react";
 
 export function DashboardStats() {
+  const { data: session } = useSession();
+  const [stats, setStats] = useState({
+    totalProjects: 0,
+    completedTasks: 0,
+    pendingTasks: 0
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      if (!session?.user) return;
+      
+      try {
+        const response = await fetch('/api/dashboard/stats');
+        const data = await response.json();
+        setStats({
+          totalProjects: data.totalProjects || 0,
+          completedTasks: data.completedTasks || 0,
+          pendingTasks: data.pendingTasks || 0
+        });
+      } catch (error) {
+        console.error('Error fetching dashboard stats:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, [session]);
+
+  if (loading) {
+    return (
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <StatCard title="Total Projects" value="—" description="Loading..." />
+        <StatCard title="Completed Tasks" value="—" description="Loading..." />
+        <StatCard title="Pending Tasks" value="—" description="Loading..." />
+      </div>
+    );
+  }
+
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       <StatCard 
         title="Total Projects" 
-        value="12" 
+        value={stats.totalProjects.toString()} 
         description="Active projects" 
-        trend="+2 from last month" 
-        trendUp 
       />
       <StatCard 
         title="Completed Tasks" 
-        value="128" 
+        value={stats.completedTasks.toString()} 
         description="Across all projects" 
-        trend="+14 from last week" 
-        trendUp 
-      />
-      <StatCard 
-        title="Team Members" 
-        value="8" 
-        description="In your projects" 
       />
       <StatCard 
         title="Pending Tasks" 
-        value="24" 
+        value={stats.pendingTasks.toString()} 
         description="Requiring attention" 
-        trend="-3 from last week" 
-        trendUp 
       />
     </div>
   );
