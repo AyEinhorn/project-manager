@@ -3,7 +3,10 @@ import bcrypt from "bcrypt";
 import { PrismaClient } from "@prisma/client";
 import * as z from "zod";
 
-const prisma = new PrismaClient();
+// Use a singleton pattern for Prisma client to avoid multiple connections
+const globalForPrisma = global as unknown as { prisma: PrismaClient };
+const prisma = globalForPrisma.prisma || new PrismaClient();
+if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
 // Define validation schema
 const userSchema = z.object({
